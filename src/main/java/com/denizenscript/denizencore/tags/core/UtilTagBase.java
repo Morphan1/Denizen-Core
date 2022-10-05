@@ -27,9 +27,18 @@ public class UtilTagBase extends PseudoObjectTagBase<UtilTagBase> {
 
     public static UtilTagBase instance;
 
+    public UtilTagBase() {
+        super(UtilTagBase.class);
+    }
+
     public static void register() {
         instance = new UtilTagBase();
-        TagManager.registerStaticTagBaseHandler(UtilTagBase.class, "util", (t) -> instance);
+        TagManager.registerStaticTagBase(instance);
+    }
+
+    @Override
+    public String getName() {
+        return "util";
     }
 
     @Override

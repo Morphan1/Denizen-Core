@@ -1,12 +1,42 @@
 package com.denizenscript.denizencore.tags;
 
-import com.denizenscript.denizencore.objects.ObjectFetcher;
 import com.denizenscript.denizencore.objects.ObjectTag;
-import com.denizenscript.denizencore.objects.ObjectType;
 import com.denizenscript.denizencore.objects.core.ElementTag;
-import com.denizenscript.denizencore.utilities.debugging.DebugInternals;
 
-public abstract class PseudoObjectTagBase<T extends PseudoObjectTagBase> implements ObjectTag {
+public abstract class PseudoObjectTagBase<T extends PseudoObjectTagBase<T>> extends ObjectTagBase<T> implements ObjectTag {
+    public PseudoObjectTagBase(Class<T> thisClass) {
+        super(thisClass);
+    }
+
+    @Override
+    public String getObjectIdentifier() {
+        return null;
+    }
+
+    @Override
+    public T getDefault(TagContext context) {
+        return (T) this;
+    }
+
+    @Override
+    public T valueOf(String input, TagContext context) {
+        return null;
+    }
+
+    @Override
+    public boolean matches(String input) {
+        return false;
+    }
+
+    @Override
+    public T getForObject(ObjectTag objectTag, TagContext context) {
+        return null;
+    }
+
+    @Override
+    public boolean shouldBeType(Class<? extends ObjectTag> type) {
+        return false;
+    }
 
     @Override
     public String getPrefix() {
@@ -43,23 +73,8 @@ public abstract class PseudoObjectTagBase<T extends PseudoObjectTagBase> impleme
         return new ElementTag.FailedObjectTag();
     }
 
-    public ObjectTagProcessor<T> tagProcessor = new ObjectTagProcessor<>();
-
-    public ObjectType<T> type = new ObjectType<>();
-
-    public abstract void registerTags();
-
     @Override
     public ObjectTag getObjectAttribute(Attribute attribute) {
         return tagProcessor.getObjectAttribute((T) this, attribute);
-    }
-
-    public PseudoObjectTagBase() {
-        tagProcessor.type = (Class<T>) getClass();
-        type.tagProcessor = tagProcessor;
-        type.clazz = tagProcessor.type;
-        type.longName = DebugInternals.getClassNameOpti(getClass());
-        ObjectFetcher.objectsByClass.put(type.clazz, type);
-        registerTags();
     }
 }

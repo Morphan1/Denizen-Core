@@ -95,6 +95,16 @@ public class TagManager {
         }, isStatic);
     }
 
+    public static <R extends ObjectTag> void registerStaticTagBase(ObjectTagBase<R> tagBase) {
+        ObjectFetcher.registerWithObjectFetcher(tagBase);
+        internalRegisterTagHandler(tagBase.tagClass, tagBase.getName(), tagBase::handleAttribute, true);
+    }
+
+    public static <R extends ObjectTag> void registerTagBase(ObjectTagBase<R> tagBase) {
+        ObjectFetcher.registerWithObjectFetcher(tagBase);
+        internalRegisterTagHandler(tagBase.tagClass, tagBase.getName(), tagBase::handleAttribute, false);
+    }
+
     public static <R extends ObjectTag> void registerStaticTagBaseHandler(Class<R> returnType, String name, TagRunnable.BaseInterface<R> run) {
         internalRegisterTagHandler(returnType, name, run, true);
     }

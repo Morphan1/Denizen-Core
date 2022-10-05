@@ -2,6 +2,7 @@ package com.denizenscript.denizencore.objects;
 
 import com.denizenscript.denizencore.objects.core.*;
 import com.denizenscript.denizencore.tags.CoreObjectTags;
+import com.denizenscript.denizencore.tags.ObjectTagBase;
 import com.denizenscript.denizencore.tags.ObjectTagProcessor;
 import com.denizenscript.denizencore.utilities.CoreUtilities;
 import com.denizenscript.denizencore.utilities.debugging.Debug;
@@ -213,55 +214,94 @@ public class ObjectFetcher {
         registerWithObjectFetcher(objectTag, null);
     }
 
-    public static <T extends ObjectTag> ObjectType<T> registerWithObjectFetcher(Class<T> objectTag, ObjectTagProcessor<T> processor) {
-        String className = DebugInternals.getClassNameOpti(objectTag);
-        String shortName = null;
-        if (className.endsWith("Tag")) {
-            shortName = className.substring(0, className.length() - "Tag".length());
-        }
-        return registerWithObjectFetcher(objectTag, processor, shortName, className);
-    }
-
-    public static <T extends ObjectTag> ObjectType<T> registerWithObjectFetcher(Class<T> objectTag, ObjectTagProcessor<T> processor, String shortName, String longName) {
+    public static <T extends ObjectTag> ObjectType<T> registerWithObjectFetcher(Class<T> objectTag, ObjectTagBase<T> baseTag, ObjectTagProcessor<T> processor,
+                                                                                String shortName, String longName) {
         ObjectType<T> newType = new ObjectType<>();
         newType.clazz = objectTag;
+        boolean isRealObject = baseTag == null || !baseTag.getClass().equals(objectTag);
         if (processor != null) {
             processor.type = objectTag;
-            CoreObjectTags.generateCoreTags(processor);
+            if (isRealObject) {
+                CoreObjectTags.generateCoreTags(processor);
+            }
             newType.tagProcessor = processor;
         }
         newType.longName = longName;
         newType.shortName = shortName;
         newType.isAdjustable = Adjustable.class.isAssignableFrom(objectTag);
         objectsByClass.put(objectTag, newType);
-        realObjectClassSet.add(objectTag);
-        try {
-            Method valueOfMethod = objectTag.getMethod("valueOf", String.class, TagContext.class);
-            if (valueOfMethod.isAnnotationPresent(Fetchable.class)) {
-                String identifier = valueOfMethod.getAnnotation(Fetchable.class).value();
-                objectsByPrefix.put(CoreUtilities.toLowerCase(identifier.trim()), newType);
-                objectsByName.put(CoreUtilities.toLowerCase(longName), newType);
-                if (shortName != null) {
-                    objectsByName.put(CoreUtilities.toLowerCase(shortName), newType);
+        String identifier;
+        ObjectType.MatchesInterface matches;
+        ObjectType.ValueOfInterface<T> valueOf;
+        if (baseTag != null) {
+            identifier = baseTag.getObjectIdentifier();
+            matches = baseTag::matches;
+            valueOf = baseTag::valueOf;
+            baseTag.registerTags();
+        }
+        else {
+            try {
+                Method valueOfMethod = objectTag.getMethod("valueOf", String.class, TagContext.class);
+                if (valueOfMethod.isAnnotationPresent(Fetchable.class)) {
+                    identifier = valueOfMethod.getAnnotation(Fetchable.class).value();
                 }
-                newType.prefix = identifier;
-            }
-            else {
-                Debug.echoError("Type '" + DebugInternals.getClassNameOpti(objectTag) + "' registered as an object type, but doesn't have a fetcher prefix.");
-            }
-            newType.matches = getMatchesFor(objectTag);
-            newType.valueOf = getValueOfFor(objectTag);
-            for (Method registerMethod: objectTag.getDeclaredMethods()) {
-                if (registerMethod.getName().equals("registerTags") && registerMethod.getParameterCount() == 0) {
-                    registerMethod.invoke(null);
+                else {
+                    Debug.echoError("Type '" + DebugInternals.getClassNameOpti(objectTag) + "' registered as an object type, but doesn't have a fetcher prefix.");
+                    return null;
                 }
+                matches = getMatchesFor(objectTag);
+                valueOf = getValueOfFor(objectTag);
+                for (Method registerMethod: objectTag.getDeclaredMethods()) {
+                    if (registerMethod.getName().equals("registerTags") && registerMethod.getParameterCount() == 0) {
+                        registerMethod.invoke(null);
+                    }
+                }
+            }
+            catch (Throwable ex) {
+                Debug.echoError("Failed to initialize an object type(" + longName + "): ");
+                Debug.echoError(ex);
+                return null;
             }
         }
-        catch (Throwable ex) {
-            Debug.echoError("Failed to initialize an object type(" + DebugInternals.getClassNameOpti(objectTag) + "): ");
-            Debug.echoError(ex);
+        if (isRealObject) {
+            realObjectClassSet.add(objectTag);
+            objectsByPrefix.put(CoreUtilities.toLowerCase(identifier.trim()), newType);
+            objectsByName.put(CoreUtilities.toLowerCase(longName), newType);
+            if (shortName != null) {
+                objectsByName.put(CoreUtilities.toLowerCase(shortName), newType);
+            }
+            newType.prefix = identifier;
         }
+        newType.matches = matches;
+        newType.valueOf = valueOf;
         return newType;
+    }
+
+    public static <T extends ObjectTag> ObjectType<T> registerWithObjectFetcher(ObjectTagBase<T> tagBase) {
+        Class<T> objectTag = tagBase.tagClass;
+        String longName = DebugInternals.getClassNameOpti(objectTag);
+        String shortName = null;
+        if (longName.endsWith("Tag")) {
+            shortName = longName.substring(0, longName.length() - "Tag".length());
+        }
+        return registerWithObjectFetcher(objectTag, tagBase, tagBase.tagProcessor, shortName, longName);
+    }
+
+    public static <T extends ObjectTag> ObjectType<T> registerWithObjectFetcher(ObjectTagBase<T> tagBase, String shortName, String longName) {
+        return registerWithObjectFetcher(tagBase.tagClass, tagBase, tagBase.tagProcessor, shortName, longName);
+    }
+
+    public static <T extends ObjectTag> ObjectType<T> registerWithObjectFetcher(Class<T> objectTag, ObjectTagProcessor<T> processor) {
+        String longName = DebugInternals.getClassNameOpti(objectTag);
+        String shortName = null;
+        if (longName.endsWith("Tag")) {
+            shortName = longName.substring(0, longName.length() - "Tag".length());
+        }
+        return registerWithObjectFetcher(objectTag, processor, shortName, longName);
+    }
+
+    public static <T extends ObjectTag> ObjectType<T> registerWithObjectFetcher(Class<T> objectTag, ObjectTagProcessor<T> processor, String shortName, String longName) {
+        return registerWithObjectFetcher(objectTag, null, processor, longName, shortName);
     }
 
     public static boolean canFetch(String id) {
